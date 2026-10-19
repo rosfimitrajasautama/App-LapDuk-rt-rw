@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Laporan Kependudukan (LapDuk) Desa Ciomas, Bogor</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS / XLSX CDN (Untuk Export Excel) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- html2pdf CDN (Untuk Export PDF) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        @media print {
+            body * { visibility: hidden !important; }
+            .printing-active, .printing-active * { visibility: visible !important; }
+            .printing-active { 
+                position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; margin: 0 !important; padding: 15px !important; background: white !important; z-index: 9999;
+            }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 pb-20 md:pb-0">
+
+    <!-- HALAMAN LOGIN -->
+    <div id="loginPage" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 space-y-6">
+            <div class="text-center space-y-2">
+                <div class="inline-flex p-3 bg-blue-50 text-blue-600 rounded-2xl text-3xl mb-2">
+                    <i class="fa-solid fa-address-book"></i>
+                </div>
+                <h2 class="text-xl font-bold text-slate-900">Login LapDuk Ciomas Online</h2>
+                <p class="text-xs text-slate-500">Sistem Administrasi Kependudukan Desa Ciomas, Bogor</p>
+            </div>
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Username</label>
+                    <input type="text" id="loginUser" placeholder="Contoh: desa, rw010, rt001_rw010..." required class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Password</label>
+                    <input type="password" id="loginPass" placeholder="Masukkan password..." required class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div id="loginError" class="text-xs text-red-600 text-center hidden">Username atau Password salah!</div>
+                <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition shadow-lg shadow-blue-600/30">
+                    Masuk Aplikasi
+                </button>
+            </form>
+            <div class="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border space-y-1">
+                <p class="font-semibold text-slate-700 mb-1">Akun Default (Pass: ciomas2026):</p>
+                <p>• Admin Desa (Full Akses, Edit Warga & Akun): <code class="bg-white px-1.5 py-0.5 rounded border">desa</code></p>
+                <p>• Admin RW (Gabungan RT): <code class="bg-white px-1.5 py-0.5 rounded border">rw001</code> s.d. <code class="bg-white px-1.5 py-0.5 rounded border">rw012</code></p>
+                <p>• Admin RT (Khusus RT): <code class="bg-white px-1.5 py-0.5 rounded border">rt001_rw010</code> s.d. <code class="bg-white px-1.5 py-0.5 rounded border">rt004_rw010</code></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTAINER UTAMA APLIKASI -->
+    <div id="appContainer" class="flex flex-col md:flex-row h-screen overflow-hidden hidden">
+        
+        <!-- Sidebar / Navigasi Mobile & Desktop -->
+        <aside class="w-full md:w-64 bg-slate-900 text-white flex flex-col md:flex-col no-print shadow-xl z-20">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center md:block">
+                <div>
+                    <h1 class="text-base font-bold tracking-wider text-blue-400"><i class="fa-solid fa-address-book mr-2"></i> LapDuk Ciomas</h1>
+                    <p id="userRoleBadge" class="text-[11px] text-amber-400 mt-0.5 font-semibold">Role: Admin</p>
+                </div>
+                <button onclick="handleLogout()" class="md:hidden text-red-400 hover:text-red-300 p-2 text-sm" title="Keluar">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+            
+            <nav class="flex md:flex-1 p-2 md:p-4 space-x-2 md:space-x-0 md:space-y-1.5 overflow-x-auto md:overflow-y-auto bg-slate-900 shrink-0">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex items-center px-3.5 py-2 md:px-4 md:py-2.5 rounded-lg text-xs md:text-sm font-medium bg-blue-600 text-white transition whitespace-nowrap">
+                    <i class="fa-solid fa-chart-pie md:w-5 mr-1.5 md:mr-3"></i> Dashboard
+                </button>
+                <button onclick="switchTab('warga')" id="nav-warga" class="flex items-center px-3.5 py-2 md:px-4 md:py-2.5 rounded-lg text-xs md:text-sm font-medium hover:bg-slate-800 text-slate-300 transition whitespace-nowrap">
+                    <i class="fa-solid fa-users md:w-5 mr-1.5 md:mr-3"></i> Warga
+                </button>
+                <button onclick="switchTab('mutasi')" id="nav-mutasi" class="flex items-center px-3.5 py-2 md:px-4 md:py-2.5 rounded-lg text-xs md:text-sm font-medium hover:bg-slate-800 text-slate-300 transition whitespace-nowrap">
+                    <i class="fa-solid fa-right-left md:w-5 mr-1.5 md:mr-3"></i> Mutasi
+                </button>
+                <button onclick="switchTab('laporan')" id="nav-laporan" class="flex items-center px-3.5 py-2 md:px-4 md:py-2.5 rounded-lg text-xs md:text-sm font-medium hover:bg-slate-800 text-slate-300 transition whitespace-nowrap">
+                    <i class="fa-solid fa-chart-bar md:w-5 mr-1.5 md:mr-3"></i> Statistik
+                </button>
+                <button onclick="switchTab('print')" id="nav-print" class="flex items-center px-3.5 py-2 md:px-4 md:py-2.5 rounded-lg text-xs md:text-sm font-medium hover:bg-slate-800 text-slate-300 transition whitespace-nowrap">
+                    <i class="fa-solid fa-print md:w-5 mr-1.5 md:mr-3"></i> Cetak
+                </button>
+                <button onclick="switchTab('rekap')" id="nav-rekap" class="flex items-center px-3.5 py-2 md:px-4 md:py-2.5 rounded-lg text-xs md:text-sm font-medium hover:bg-slate-800 text-slate-300 transition whitespace-nowrap">
+                    <i class="fa-solid fa-layer-group md:w-5 mr-1.5 md:mr-3"></i> Rekap Wilayah
+                </button>
+                <button onclick="switchTab('akun')" id="nav-akun" class="flex items-center px-3.5 py-2 md:px-4 md:py-2.5 rounded-lg text-xs md:text-sm font-medium hover:bg-slate-800 text-slate-300 transition whitespace-nowrap">
+                    <i class="fa-solid fa-user-shield md:w-5 mr-1.5 md:mr-3"></i> Daftar Akun
+                </button>
+            </nav>
+
+            <div class="hidden md:block p-4 border-t border-slate-800">
+                <button onclick="handleLogout()" class="w-full flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white transition shadow">
+                    <i class="fa-solid fa-right-from-bracket mr-2"></i> Keluar / Logout
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col overflow-y-auto">
+            
+            <header class="bg-white border-b border-slate-200 h-14 md:h-16 flex items-center justify-between px-4 md:px-8 no-print shadow-sm">
+                <h2 id="page-title" class="text-base md:text-lg font-bold text-slate-800">Dashboard Utama</h2>
+                <div class="text-xs md:text-sm font-medium text-slate-600 flex items-center gap-2">
+                    <span id="headerWilayahInfo">Wilayah: <strong class="text-blue-600">Desa Ciomas, Bogor</strong></span>
+                </div>
+            </header>
+
+            <div class="p-4 md:p-8 space-y-6">
+                
+                <!-- TAB 1: DASHBOARD -->
+                <div id="tab-dashboard" class="space-y-6">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
+                        <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center">
+                            <div class="p-3 md:p-4 bg-blue-50 text-blue-600 rounded-xl mr-3 md:mr-4"><i class="fa-solid fa-users text-xl md:text-2xl"></i></div>
+                            <div>
+                                <p class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase">Total Warga</p>
+                                <h3 id="stat-total" class="text-xl md:text-2xl font-bold text-slate-800">0</h3>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center">
+                            <div class="p-3 md:p-4 bg-indigo-50 text-indigo-600 rounded-xl mr-3 md:mr-4"><i class="fa-solid fa-mars text-xl md:text-2xl"></i></div>
+                            <div>
+                                <p class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase">Laki-Laki</p>
+                                <h3 id="stat-l" class="text-xl md:text-2xl font-bold text-slate-800">0</h3>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center">
+                            <div class="p-3 md:p-4 bg-pink-50 text-pink-600 rounded-xl mr-3 md:mr-4"><i class="fa-solid fa-venus text-xl md:text-2xl"></i></div>
+                            <div>
+                                <p class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase">Perempuan</p>
+                                <h3 id="stat-p" class="text-xl md:text-2xl font-bold text-slate-800">0</h3>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center">
+                            <div class="p-3 md:p-4 bg-emerald-50 text-emerald-600 rounded-xl mr-3 md:mr-4"><i class="fa-solid fa-house-chimney text-xl md:text-2xl"></i></div>
+                            <div>
+                                <p class="text-[10px] md:text-xs font-semibold text-slate-400 uppercase">Jumlah KK</p>
+                                <h3 id="stat-kk" class="text-xl md:text-2xl font-bold text-slate-800">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Statistik Rinci Kelompok -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                            <h3 class="font-bold text-sm text-slate-800 uppercase tracking-wide border-b pb-2"><i class="fa-solid fa-chart-pie mr-2 text-blue-600"></i> Statistik Kelompok Usia</h3>
+                            <div id="dash-usia-list" class="space-y-2 text-xs md:text-sm"></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                            <h3 class="font-bold text-sm text-slate-800 uppercase tracking-wide border-b pb-2"><i class="fa-solid fa-place-of-worship mr-2 text-blue-600"></i> Statistik Agama</h3>
+                            <div id="dash-agama-list" class="space-y-2 text-xs md:text-sm"></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                            <h3 class="font-bold text-sm text-slate-800 uppercase tracking-wide border-b pb-2"><i class="fa-solid fa-ring mr-2 text-blue-600"></i> Statistik Perkawinan</h3>
+                            <div id="dash-kawin-list" class="space-y-2 text-xs md:text-sm"></div>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                            <h3 class="font-bold text-sm text-slate-800 uppercase tracking-wide border-b pb-2"><i class="fa-solid fa-hand-holding-dollar mr-2 text-blue-600"></i> Statistik Penerima Bansos</h3>
+                            <div id="dash-bansos-list" class="space-y-2 text-xs md:text-sm"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: DATA WARGA -->
+                <div id="tab-warga" class="hidden space-y-4 md:space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                        <input type="text" id="searchWarga" placeholder="Cari nama, NIK, KK, alamat, agama, bansos, dll..." class="px-4 py-2 border border-slate-300 rounded-lg text-sm w-full md:w-80 focus:ring-2 focus:ring-blue-500 focus:outline-none" onkeyup="renderWargaTable()">
+                        
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <button onclick="exportTxtData()" class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center shadow" title="Export Backup Data (.txt)">
+                                <i class="fa-solid fa-file-arrow-down mr-1.5"></i> Export .txt
+                            </button>
+                            <label id="importContainer" class="bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center shadow cursor-pointer" title="Tambah Data dari File .txt">
+                                <i class="fa-solid fa-file-arrow-up mr-1.5"></i> Import & Tambah .txt
+                                <input type="file" id="importFile" accept=".txt" onchange="importTxtData(event)" class="hidden">
+                            </label>
+                            <button onclick="exportWargaExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center shadow">
+                                <i class="fa-solid fa-file-excel mr-1.5"></i> Excel
+                            </button>
+                            <button onclick="exportWargaPDF()" class="bg-red-600 hover:bg-red-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center shadow">
+                                <i class="fa-solid fa-file-pdf mr-1.5"></i> PDF
+                            </button>
+                            <button id="btnAddWarga" onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center shadow">
+                                <i class="fa-solid fa-user-plus mr-1.5"></i> Tambah Warga
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse min-w-[700px]" id="tableDataWarga">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase">
+                                        <th class="p-3">No</th>
+                                        <th class="p-3">RT/RW</th>
+                                        <th class="p-3">No. KK / NIK</th>
+                                        <th class="p-3">Nama Lengkap</th>
+                                        <th class="p-3">TTL</th>
+                                        <th class="p-3">SHDK</th>
+                                        <th class="p-3">L/P</th>
+                                        <th class="p-3 text-center no-print" id="thAksi">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="wargaTableBody" class="divide-y divide-slate-200 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: MUTASI -->
+                <div id="tab-mutasi" class="hidden space-y-4 md:space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 no-print">
+                        <h3 class="text-sm md:text-base font-bold text-slate-800">Control & Rekapitulasi Mutasi Warga</h3>
+                        <div class="flex gap-2">
+                            <button onclick="exportMutasiExcel()" class="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center justify-center shadow">
+                                <i class="fa-solid fa-file-excel mr-2"></i> Excel
+                            </button>
+                            <button onclick="exportMutasiPDF()" class="flex-1 md:flex-none bg-red-600 hover:bg-red-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center justify-center shadow">
+                                <i class="fa-solid fa-file-pdf mr-2"></i> PDF
+                            </button>
+                            <button onclick="printSection('printMutasiArea')" class="flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center justify-center shadow">
+                                <i class="fa-solid fa-print mr-2"></i> Cetak Mutasi
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="printMutasiArea" class="bg-white p-4 md:p-8 rounded-xl shadow-sm border border-slate-200 space-y-6 text-xs md:text-sm">
+                        <div id="kopMutasiArea"></div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse text-xs border border-slate-300 min-w-[500px]">
+                                <thead>
+                                    <tr class="bg-slate-100 border-b font-semibold uppercase text-slate-700">
+                                        <th class="border p-2">No</th>
+                                        <th class="border p-2">RT/RW</th>
+                                        <th class="border p-2">Nama Lengkap</th>
+                                        <th class="border p-2">L/P</th>
+                                        <th class="border p-2">Status Mutasi</th>
+                                        <th class="border p-2">Tanggal</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mutasiTableBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="ttdMutasiArea" class="pt-6"></div>
+                    </div>
+                </div>
+
+                <!-- TAB 4: LAPORAN & STATISTIK -->
+                <div id="tab-laporan" class="hidden space-y-4 md:space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 no-print">
+                        <h3 class="text-sm md:text-base font-bold text-slate-800">Rekapitulasi Laporan Statistik</h3>
+                        <div class="flex gap-2">
+                            <button onclick="exportStatistikExcel()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center justify-center shadow">
+                                <i class="fa-solid fa-file-excel mr-2"></i> Excel
+                            </button>
+                            <button onclick="exportStatistikPDF()" class="flex-1 bg-red-600 hover:bg-red-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center justify-center shadow">
+                                <i class="fa-solid fa-file-pdf mr-2"></i> PDF
+                            </button>
+                            <button onclick="printSection('printStatArea')" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center justify-center shadow">
+                                <i class="fa-solid fa-print mr-2"></i> Cetak Statistik
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="printStatArea" class="bg-white p-4 md:p-8 rounded-xl shadow-sm border border-slate-200 space-y-6 text-xs md:text-sm">
+                        <div id="kopStatArea"></div>
+                        <div class="space-y-6">
+                            <div><h4 class="font-bold text-[11px] md:text-xs uppercase text-blue-700 mb-2">1. Jenis Kelamin & Kepala Keluarga</h4><div class="overflow-x-auto"><table class="w-full border-collapse border border-slate-300 text-xs min-w-[400px]"><thead><tr class="bg-slate-100 font-semibold"><th class="border p-2 text-left">Kategori</th><th class="border p-2 text-center w-20">L</th><th class="border p-2 text-center w-20">P</th><th class="border p-2 text-center w-20">Jumlah</th></tr></thead><tbody id="stat-table-gender"></tbody></table></div></div>
+                            <div><h4 class="font-bold text-[11px] md:text-xs uppercase text-blue-700 mb-2">2. Kelompok Usia</h4><div class="overflow-x-auto"><table class="w-full border-collapse border border-slate-300 text-xs min-w-[400px]"><thead><tr class="bg-slate-100 font-semibold"><th class="border p-2 text-left">Kelompok Usia</th><th class="border p-2 text-center w-20">L</th><th class="border p-2 text-center w-20">P</th><th class="border p-2 text-center w-20">Jumlah</th></tr></thead><tbody id="stat-table-usia"></tbody></table></div></div>
+                            <div><h4 class="font-bold text-[11px] md:text-xs uppercase text-blue-700 mb-2">3. Agama</h4><div class="overflow-x-auto"><table class="w-full border-collapse border border-slate-300 text-xs min-w-[400px]"><thead><tr class="bg-slate-100 font-semibold"><th class="border p-2 text-left">Agama</th><th class="border p-2 text-center w-20">L</th><th class="border p-2 text-center w-20">P</th><th class="border p-2 text-center w-20">Jumlah</th></tr></thead><tbody id="stat-table-agama"></tbody></table></div></div>
+                            <div><h4 class="font-bold text-[11px] md:text-xs uppercase text-blue-700 mb-2">4. Status Perkawinan</h4><div class="overflow-x-auto"><table class="w-full border-collapse border border-slate-300 text-xs min-w-[400px]"><thead><tr class="bg-slate-100 font-semibold"><th class="border p-2 text-left">Status</th><th class="border p-2 text-center w-20">L</th><th class="border p-2 text-center w-20">P</th><th class="border p-2 text-center w-20">Jumlah</th></tr></thead><tbody id="stat-table-perkawinan"></tbody></table></div></div>
+                            <div><h4 class="font-bold text-[11px] md:text-xs uppercase text-blue-700 mb-2">5. Pendidikan Terakhir</h4><div class="overflow-x-auto"><table class="w-full border-collapse border border-slate-300 text-xs min-w-[400px]"><thead><tr class="bg-slate-100 font-semibold"><th class="border p-2 text-left">Pendidikan</th><th class="border p-2 text-center w-20">L</th><th class="border p-2 text-center w-20">P</th><th class="border p-2 text-center w-20">Jumlah</th></tr></thead><tbody id="stat-table-pendidikan"></tbody></table></div></div>
+                            <div><h4 class="font-bold text-[11px] md:text-xs uppercase text-blue-700 mb-2">6. Pekerjaan</h4><div class="overflow-x-auto"><table class="w-full border-collapse border border-slate-300 text-xs min-w-[400px]"><thead><tr class="bg-slate-100 font-semibold"><th class="border p-2 text-left">Pekerjaan</th><th class="border p-2 text-center w-20">L</th><th class="border p-2 text-center w-20">P</th><th class="border p-2 text-center w-20">Jumlah</th></tr></thead><tbody id="stat-table-pekerjaan"></tbody></table></div></div>
+                            <div><h4 class="font-bold text-[11px] md:text-xs uppercase text-blue-700 mb-2">7. Kepemilikan Dokumen</h4><div class="overflow-x-auto"><table class="w-full border-collapse border border-slate-300 text-xs min-w-[400px]"><thead><tr class="bg-slate-100 font-semibold"><th class="border p-2 text-left">Dokumen</th><th class="border p-2 text-center w-20">L</th><th class="border p-2 text-center w-20">P</th><th class="border p-2 text-center w-20">Jumlah</th></tr></thead><tbody id="stat-table-dokumen"></tbody></table></div></div>
+                            <div><h4 class="font-bold text-[11px] md:text-xs uppercase text-blue-700 mb-2">8. Penerimaan Bantuan Sosial</h4><div class="overflow-x-auto"><table class="w-full border-collapse border border-slate-300 text-xs min-w-[400px]"><thead><tr class="bg-slate-100 font-semibold"><th class="border p-2 text-left">Bantuan Sosial</th><th class="border p-2 text-center w-20">L</th><th class="border p-2 text-center w-20">P</th><th class="border p-2 text-center w-20">Jumlah</th></tr></thead><tbody id="stat-table-bantuan"></tbody></table></div></div>
+                        </div>
+                        <div id="ttdStatArea" class="pt-6"></div>
+                    </div>
+                </div>
+
+                <!-- TAB 5: PRINTOUT MASTER WARGA -->
+                <div id="tab-print" class="hidden space-y-4 md:space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 no-print">
+                        <h3 class="text-sm md:text-base font-bold text-slate-800">Pratinjau Cetak Master Warga</h3>
+                        <div class="flex gap-2">
+                            <button onclick="exportMasterExcel()" class="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center justify-center shadow">
+                                <i class="fa-solid fa-file-excel mr-2"></i> Excel
+                            </button>
+                            <button onclick="exportMasterPDF()" class="flex-1 md:flex-none bg-red-600 hover:bg-red-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center justify-center shadow">
+                                <i class="fa-solid fa-file-pdf mr-2"></i> PDF
+                            </button>
+                            <button onclick="printSection('printArea')" class="flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center justify-center shadow">
+                                <i class="fa-solid fa-print mr-2"></i> Cetak Master
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="printArea" class="bg-white p-4 md:p-10 rounded-xl shadow-sm border border-slate-200 max-w-4xl mx-auto space-y-6 text-slate-900 text-xs">
+                        <div id="kopMasterArea"></div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-[10px] md:text-xs border-collapse border border-slate-400 min-w-[600px]">
+                               <thead>
+                                   <tr class="bg-slate-200">
+                                       <th class="border p-1.5">No</th>
+                                       <th class="border p-1.5">RT/RW</th>
+                                       <th class="border p-1.5">Nama Lengkap</th>
+                                       <th class="border p-1.5">TTL</th>
+                                       <th class="border p-1.5">SHDK</th>
+                                       <th class="border p-1.5">L/P</th>
+                                       <th class="border p-1.5">Alamat</th>
+                                   </tr>
+                               </thead>
+                               <tbody id="printWargaTableBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="ttdMasterArea" class="pt-6"></div>
+                    </div>
+                </div>
+
+                <!-- TAB 6: REKAPITULASI WILAYAH -->
+                <div id="tab-rekap" class="hidden space-y-4 md:space-y-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                        <div class="flex justify-between items-center border-b pb-3">
+                            <div>
+                                <h3 id="rekapTitle" class="text-sm md:text-base font-bold text-slate-800">Rekapitulasi Wilayah</h3>
+                                <p id="rekapDesc" class="text-xs text-slate-500">Rekapitulasi data warga per wilayah.</p>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse text-xs md:text-sm border border-slate-300 min-w-[500px]">
+                                <thead>
+                                    <tr class="bg-slate-100 border-b font-semibold uppercase text-slate-700">
+                                        <th class="border p-3">No</th>
+                                        <th class="border p-3" id="rekapColHeader">Wilayah</th>
+                                        <th class="border p-3 text-center">Jumlah KK</th>
+                                        <th class="border p-3 text-center">Laki-Laki (L)</th>
+                                        <th class="border p-3 text-center">Perempuan (P)</th>
+                                        <th class="border p-3 text-center">Total Warga</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rekapTableBody" class="divide-y divide-slate-200"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 7: DAFTAR AKUN TERDAFTAR -->
+                <div id="tab-akun" class="hidden space-y-4 md:space-y-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
+                        <div>
+                            <h3 class="text-sm md:text-base font-bold text-slate-800">Manajemen Akun Pengguna Desa Ciomas</h3>
+                            <p class="text-xs text-slate-500">Admin Desa dapat menambah atau mengubah username dan password seluruh akun.</p>
+                        </div>
+                        <div id="accountActionBtnContainer"></div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="overflow-x-auto max-h-[500px]">
+                            <table class="w-full text-left border-collapse min-w-[500px]">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase sticky top-0 bg-slate-50">
+                                        <th class="p-3">No</th>
+                                        <th class="p-3">Username</th>
+                                        <th class="p-3">Password</th>
+                                        <th class="p-3">Role Akses</th>
+                                        <th class="p-3">Keterangan Wilayah</th>
+                                        <th class="p-3 text-center" id="thAksiAkun">Aksi Edit</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="accountTableBody" class="divide-y divide-slate-200 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL FORM INPUT / EDIT WARGA (HANYA ADMIN DESA) -->
+    <div id="wargaModal" class="fixed inset-0 bg-slate-900/60 hidden flex items-center justify-center p-3 md:p-4 z-50 overflow-y-auto">
+        <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 md:p-6 my-auto">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 id="modalTitle" class="text-sm md:text-base font-bold text-slate-800">Tambah Data Warga</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="wargaForm" onsubmit="saveWarga(event)" class="space-y-3.5 text-xs md:text-sm">
+                <input type="hidden" id="editIndex" value="">
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-lg border">
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">RT</label>
+                        <input type="text" id="rt" placeholder="001" required class="w-full px-3 py-1.5 border rounded-lg bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">RW</label>
+                        <input type="text" id="rw" placeholder="010" required class="w-full px-3 py-1.5 border rounded-lg bg-white">
+                    </div>
+                    <div class="md:col-span-1">
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Alamat Lengkap</label>
+                        <input type="text" id="alamat" placeholder="Kp. ... / Jl. ..." required class="w-full px-3 py-1.5 border rounded-lg bg-white">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">No. KK</label>
+                        <input type="text" id="no_kk" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">No. KTP / NIK</label>
+                        <input type="text" id="no_ktp" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Nama Lengkap</label>
+                    <input type="text" id="nama_lengkap" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Tempat Lahir</label>
+                        <input type="text" id="tmp_lahir" placeholder="Bogor" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Tanggal Lahir</label>
+                        <input type="date" id="tgl_lahir" required onchange="hitungUsia()" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Usia (Otomatis)</label>
+                        <input type="number" id="usia" readonly class="w-full px-3 py-2 border rounded-lg bg-slate-100 text-slate-600 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">SHDK (Hub. Keluarga)</label>
+                        <select id="shdk" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                            <option value="Kepala Keluarga">Kepala Keluarga</option>
+                            <option value="Suami">Suami</option>
+                            <option value="Istri">Istri</option>
+                            <option value="Anak">Anak</option>
+                            <option value="Menantu">Menantu</option>
+                            <option value="Cucu">Cucu</option>
+                            <option value="Orang Tua">Orang Tua</option>
+                            <option value="Mertua">Mertua</option>
+                            <option value="Famili Lain">Famili Lain</option>
+                            <option value="Lainnya">Lainnya</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Jenis Kelamin</label>
+                        <select id="jenkel" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                            <option value="L">Laki-Laki (L)</option>
+                            <option value="P">Perempuan (P)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Agama</label>
+                        <select id="agama" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                            <option value="Islam">Islam</option>
+                            <option value="Kristen">Kristen</option>
+                            <option value="Katolik">Katolik</option>
+                            <option value="Hindu">Hindu</option>
+                            <option value="Buddha">Buddha</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Pendidikan</label>
+                        <select id="pendidikan" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                            <option value="Tidak Sekolah">Tidak Sekolah</option>
+                            <option value="SD">SD</option>
+                            <option value="SMP">SMP</option>
+                            <option value="SMA">SMA</option>
+                            <option value="Diploma/S1">Diploma/S1</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Pekerjaan</label>
+                        <input type="text" id="pekerjaan" placeholder="Wiraswasta / Petani / dll" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Status Perkawinan</label>
+                        <select id="sts_perkawinan" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                            <option value="Belum Kawin">Belum Kawin</option>
+                            <option value="Kawin">Kawin</option>
+                            <option value="Cerai Hidup">Cerai Hidup</option>
+                            <option value="Cerai Mati">Cerai Mati</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-blue-700 mb-1">Status Mutasi Warga</label>
+                        <select id="mutasi" class="w-full px-3 py-1.5 border rounded-lg text-xs md:text-sm bg-white">
+                            <option value="Tetap">Tetap</option>
+                            <option value="Datang">Datang (Masuk)</option>
+                            <option value="Pindah">Pindah (Keluar)</option>
+                            <option value="Meninggal">Meninggal Dunia</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold uppercase text-blue-700 mb-1">Tanggal Mutasi</label>
+                        <input type="date" id="tgl_mutasi" class="w-full px-3 py-1.5 border rounded-lg text-xs md:text-sm bg-white">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-lg border">
+                    <div>
+                        <label class="block text-[10px] font-semibold uppercase text-slate-600 mb-1">Punya KK</label>
+                        <select id="ket_kk" class="w-full px-2 py-1 border rounded text-xs bg-white"><option value="Ada">Ada</option><option value="Tidak">Tidak</option></select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-semibold uppercase text-slate-600 mb-1">Punya KTP</label>
+                        <select id="ket_ktp" class="w-full px-2 py-1 border rounded text-xs bg-white"><option value="E-KTP">E-KTP</option><option value="Belum">Belum</option></select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-semibold uppercase text-slate-600 mb-1">KIA (&lt;17)</label>
+                        <select id="ket_kia" class="w-full px-2 py-1 border rounded text-xs bg-white"><option value="Tidak">Tidak</option><option value="Ada">Ada</option></select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-semibold uppercase text-slate-600 mb-1">Akta Lahir</label>
+                        <select id="ket_akta" class="w-full px-2 py-1 border rounded text-xs bg-white"><option value="Ada">Ada</option><option value="Tidak">Tidak</option></select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Bantuan Sosial</label>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs bg-slate-50 p-3 rounded-lg border">
+                        <label class="flex items-center space-x-1"><input type="checkbox" id="b_pkh"> <span>PKH</span></label>
+                        <label class="flex items-center space-x-1"><input type="checkbox" id="b_bpnt"> <span>BPNT</span></label>
+                        <label class="flex items-center space-x-1"><input type="checkbox" id="b_pbi"> <span>PBI-JK</span></label>
+                        <label class="flex items-center space-x-1"><input type="checkbox" id="b_blt"> <span>BLT-DD</span></label>
+                        <label class="flex items-center space-x-1"><input type="checkbox" id="b_pip"> <span>PIP/KIP</span></label>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-3 border-t">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 border rounded-lg text-xs md:text-sm font-medium text-slate-600 hover:bg-slate-50">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm font-medium hover:bg-blue-700">Simpan Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL FORM EDIT / TAMBAH AKUN (HANYA ADMIN DESA) -->
+    <div id="akunModal" class="fixed inset-0 bg-slate-900/60 hidden flex items-center justify-center p-3 md:p-4 z-50">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 id="modalAkunTitle" class="text-sm font-bold text-slate-800">Edit Akun Pengguna</h3>
+                <button onclick="closeAkunModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="akunForm" onsubmit="saveAkun(event)" class="space-y-3 text-xs md:text-sm">
+                <input type="hidden" id="editAkunIndex" value="">
+                <div>
+                    <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Username</label>
+                    <input type="text" id="akunUsername" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Password Baru</label>
+                    <input type="text" id="akunPassword" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Masukkan password...">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Role / Hak Akses</label>
+                    <select id="akunRole" class="w-full px-3 py-2 border rounded-lg bg-white">
+                        <option value="Admin Desa">Admin Desa</option>
+                        <option value="Admin RW">Admin RW</option>
+                        <option value="Admin RT">Admin RT</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold uppercase text-slate-600 mb-1">Keterangan Wilayah</label>
+                    <input type="text" id="akunDesc" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Contoh: RT 01 / RW 10 Desa Ciomas">
+                </div>
+                <div class="flex justify-end space-x-2 pt-2 border-t">
+                    <button type="button" onclick="closeAkunModal()" class="px-3.5 py-2 border rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50">Batal</button>
+                    <button type="submit" class="px-3.5 py-2 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700">Simpan Akun</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript Aplikasi -->
+    <script>
+        let accounts = JSON.parse(localStorage.getItem('lapduk_accounts_ciomas_v5')) || [];
+        if(accounts.length === 0) {
+            accounts.push({ username: 'desa', password: 'ciomas2026', role: 'Admin Desa', desc: 'Desa Ciomas (Akses Full Edit)' });
+
+            const rwConfig = {
+                "001": 5, "002": 3, "003": 3, "004": 5, "005": 6,
+                "006": 4, "007": 5, "008": 4, "009": 4, "010": 4,
+                "011": 2, "012": 2
+            };
+
+            for (let rw in rwConfig) {
+                const rwFormatted = rw.padStart(3, '0');
+                accounts.push({ username: `rw${rwFormatted}`, password: 'ciomas2026', role: 'Admin RW', desc: `Wilayah RW ${rwFormatted} Desa Ciomas` });
+
+                const totalRt = rwConfig[rw];
+                for (let i = 1; i <= totalRt; i++) {
+                    const rtNum = String(i).padStart(3, '0');
+                    accounts.push({ username: `rt${rtNum}_rw${rwFormatted}`, password: 'ciomas2026', role: 'Admin RT', desc: `RT ${rtNum} / RW ${rwFormatted} Desa Ciomas` });
+                }
+            }
+            localStorage.setItem('lapduk_accounts_ciomas_v5', JSON.stringify(accounts));
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const loggedUser = localStorage.getItem('lapduk_logged_user');
+            const loggedRole = localStorage.getItem('lapduk_logged_role');
+            if (loggedUser && loggedRole) {
+                document.getElementById('loginPage').classList.add('hidden');
+                document.getElementById('appContainer').classList.remove('hidden');
+                document.getElementById('userRoleBadge').innerText = `Akun: ${loggedUser} (${loggedRole})`;
+                updateHeaderWilayahInfo();
+                applyRolePermissions();
+                sortWargaByRtRw();
+                updateDashboard();
+            }
+        });
+
+        function parseUserTerritory(username, role) {
+            if (role === 'Admin Desa') return { type: 'desa' };
+            if (role === 'Admin RW') {
+                const rwNum = username.replace('rw', '').padStart(3, '0');
+                return { type: 'rw', rw: rwNum };
+            }
+            if (role === 'Admin RT') {
+                const parts = username.split('_');
+                const rtNum = parts[0].replace('rt', '').padStart(3, '0');
+                const rwNum = parts[1].replace('rw', '').padStart(3, '0');
+                return { type: 'rt', rt: rtNum, rw: rwNum };
+            }
+            return { type: 'desa' };
+        }
+
+        function getFilteredWargaData() {
+            const loggedUser = localStorage.getItem('lapduk_logged_user') || 'desa';
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin Desa';
+            const terr = parseUserTerritory(loggedUser, role);
+
+            if (terr.type === 'desa') {
+                return wargaData;
+            } else if (terr.type === 'rw') {
+                return wargaData.filter(w => String(w.rw).padStart(3, '0') === terr.rw);
+            } else if (terr.type === 'rt') {
+                return wargaData.filter(w => String(w.rt).padStart(3, '0') === terr.rt && String(w.rw).padStart(3, '0') === terr.rw);
+            }
+            return wargaData;
+        }
+
+        function updateHeaderWilayahInfo() {
+            const loggedUser = localStorage.getItem('lapduk_logged_user') || 'desa';
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin Desa';
+            const terr = parseUserTerritory(loggedUser, role);
+            let info = "Desa Ciomas, Bogor";
+            if (terr.type === 'rw') info = `Wilayah RW ${terr.rw}, Desa Ciomas`;
+            if (terr.type === 'rt') info = `Wilayah RT ${terr.rt} / RW ${terr.rw}, Desa Ciomas`;
+            document.getElementById('headerWilayahInfo').innerHTML = `Wilayah: <strong class="text-blue-600">${info}</strong>`;
+        }
+
+        function applyRolePermissions() {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin RT';
+            const btnAdd = document.getElementById('btnAddWarga');
+            const importContainer = document.getElementById('importContainer');
+
+            if (role !== 'Admin Desa') {
+                if(btnAdd) btnAdd.style.display = 'none';
+                if(importContainer) importContainer.style.display = 'none';
+            } else {
+                if(btnAdd) btnAdd.style.display = 'flex';
+                if(importContainer) importContainer.style.display = 'flex';
+            }
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const user = document.getElementById('loginUser').value.trim().toLowerCase();
+            const pass = document.getElementById('loginPass').value.trim();
+
+            const found = accounts.find(acc => acc.username.toLowerCase() === user && acc.password === pass);
+
+            if (found) {
+                localStorage.setItem('lapduk_logged_user', found.username);
+                localStorage.setItem('lapduk_logged_role', found.role);
+                document.getElementById('loginPage').classList.add('hidden');
+                document.getElementById('appContainer').classList.remove('hidden');
+                document.getElementById('userRoleBadge').innerText = `Akun: ${found.username} (${found.role})`;
+                updateHeaderWilayahInfo();
+                applyRolePermissions();
+                sortWargaByRtRw();
+                updateDashboard();
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            if (confirm('Apakah Anda yakin ingin keluar dari sesi ini?')) {
+                localStorage.removeItem('lapduk_logged_user');
+                localStorage.removeItem('lapduk_logged_role');
+                location.reload();
+            }
+        }
+
+        let wargaData = JSON.parse(localStorage.getItem('lapduk_warga_ciomas_v22')) || [
+            { rt: '001', rw: '010', alamat: 'Kp. Ciomas RW 010 No. 10', no_kk: '3201010101210001', no_ktp: '3201010101210002', nama_lengkap: 'Ahmad Supriyadi', tmp_lahir: 'Bogor', tgl_lahir: '1981-05-12', usia: 45, shdk: 'Kepala Keluarga', jenkel: 'L', agama: 'Islam', pendidikan: 'SMA', pekerjaan: 'Wiraswasta', sts_perkawinan: 'Kawin', mutasi: 'Tetap', tgl_mutasi: '2026-01-01', ket_kk: 'Ada', ket_ktp: 'E-KTP', ket_kia: 'Tidak', ket_akta: 'Ada', b_pkh: true, b_bpnt: true, b_pbi: true, b_blt: false, b_pip: false }
+        ];
+
+        function sortWargaByRtRw() {
+            wargaData.sort((a, b) => {
+                const rwA = (a.rw || '').toString().padStart(3, '0');
+                const rwB = (b.rw || '').toString().padStart(3, '0');
+                if (rwA !== rwB) {
+                    return rwA.localeCompare(rwB, undefined, { numeric: true });
+                }
+                const rtA = (a.rt || '').toString().padStart(3, '0');
+                const rtB = (b.rt || '').toString().padStart(3, '0');
+                return rtA.localeCompare(rtB, undefined, { numeric: true });
+            });
+        }
+
+        function switchTab(tabId) {
+            const tabs = ['dashboard', 'warga', 'mutasi', 'laporan', 'print', 'rekap', 'akun'];
+            tabs.forEach(t => {
+                const tabEl = document.getElementById(`tab-${t}`);
+                const navEl = document.getElementById(`nav-${t}`);
+                if(tabEl) tabEl.classList.add('hidden');
+                if(navEl) {
+                    navEl.classList.remove('bg-blue-600', 'text-white');
+                    navEl.classList.add('hover:bg-slate-800', 'text-slate-300');
+                }
+            });
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            document.getElementById(`nav-${tabId}`).classList.add('bg-blue-600', 'text-white');
+            document.getElementById(`nav-${tabId}`).classList.remove('hover:bg-slate-800', 'text-slate-300');
+
+            const titles = {
+                'dashboard': 'Dashboard Utama & Statistik Kelompok',
+                'warga': 'Manajemen Data Warga',
+                'mutasi': 'Control Mutasi Penduduk',
+                'laporan': 'Laporan & Statistik Kependudukan',
+                'print': 'Cetak Daftar Master Warga',
+                'rekap': 'Rekapitulasi Wilayah',
+                'akun': 'Manajemen Akun Pengguna'
+            };
+            document.getElementById('page-title').innerText = titles[tabId];
+
+            sortWargaByRtRw();
+            if(tabId === 'dashboard') updateDashboard();
+            if(tabId === 'warga') renderWargaTable();
+            if(tabId === 'mutasi') renderMutasiTable();
+            if(tabId === 'laporan') renderLaporan();
+            if(tabId === 'print') renderPrintArea();
+            if(tabId === 'rekap') renderRekapWilayah();
+            if(tabId === 'akun') renderAccountTable();
+        }
+
+        function saveData() {
+            sortWargaByRtRw();
+            localStorage.setItem('lapduk_warga_ciomas_v22', JSON.stringify(wargaData));
+        }
+
+        function hitungUsia() {
+            const tglLahir = document.getElementById('tgl_lahir').value;
+            if(!tglLahir) return;
+            const dob = new Date(tglLahir);
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            const m = today.getMonth() - dob.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+                age--;
+            }
+            document.getElementById('usia').value = age >= 0 ? age : 0;
+        }
+
+        function updateDashboard() {
+            const activeData = getFilteredWargaData();
+            document.getElementById('stat-total').innerText = activeData.length;
+            document.getElementById('stat-l').innerText = activeData.filter(w => w.jenkel === 'L').length;
+            document.getElementById('stat-p').innerText = activeData.filter(w => w.jenkel === 'P').length;
+            document.getElementById('stat-kk').innerText = new Set(activeData.map(w => w.no_kk)).size;
+            renderDashboardGroupStats(activeData);
+        }
+
+        function renderDashboardGroupStats(activeData) {
+            const balita = activeData.filter(w => w.usia >= 0 && w.usia <= 5).length;
+            const anak = activeData.filter(w => w.usia >= 6 && w.usia <= 17).length;
+            const dewasa = activeData.filter(w => w.usia >= 18 && w.usia <= 59).length;
+            const lansia = activeData.filter(w => w.usia >= 60).length;
+            document.getElementById('dash-usia-list').innerHTML = `
+                <div class="flex justify-between border-b pb-1"><span>Balita (0-5 Thn):</span> <strong class="text-blue-600">${balita} Orang</strong></div>
+                <div class="flex justify-between border-b pb-1"><span>Anak-anak (6-17 Thn):</span> <strong class="text-blue-600">${anak} Orang</strong></div>
+                <div class="flex justify-between border-b pb-1"><span>Dewasa (18-59 Thn):</span> <strong class="text-blue-600">${dewasa} Orang</strong></div>
+                <div class="flex justify-between"><span>Lansia (60+ Thn):</span> <strong class="text-blue-600">${lansia} Orang</strong></div>
+            `;
+
+            const islam = activeData.filter(w => w.agama === 'Islam').length;
+            const kristen = activeData.filter(w => w.agama === 'Kristen').length;
+            const katolik = activeData.filter(w => w.agama === 'Katolik').length;
+            const hindu = activeData.filter(w => w.agama === 'Hindu').length;
+            const buddha = activeData.filter(w => w.agama === 'Buddha').length;
+            document.getElementById('dash-agama-list').innerHTML = `
+                <div class="flex justify-between border-b pb-1"><span>Islam:</span> <strong class="text-blue-600">${islam} Orang</strong></div>
+                <div class="flex justify-between border-b pb-1"><span>Kristen:</span> <strong class="text-blue-600">${kristen} Orang</strong></div>
+                <div class="flex justify-between border-b pb-1"><span>Katolik:</span> <strong class="text-blue-600">${katolik} Orang</strong></div>
+                <div class="flex justify-between border-b pb-1"><span>Hindu:</span> <strong class="text-blue-600">${hindu} Orang</strong></div>
+                <div class="flex justify-between"><span>Buddha:</span> <strong class="text-blue-600">${buddha} Orang</strong></div>
+            `;
+
+            const belumKawin = activeData.filter(w => w.sts_perkawinan === 'Belum Kawin').length;
+            const kawin = activeData.filter(w => w.sts_perkawinan === 'Kawin').length;
+            const ceraiHidup = activeData.filter(w => w.sts_perkawinan === 'Cerai Hidup').length;
+            const ceraiMati = activeData.filter(w => w.sts_perkawinan === 'Cerai Mati').length;
+            document.getElementById('dash-kawin-list').innerHTML = `
+                <div class="flex justify-between border-b pb-1"><span>Belum Kawin:</span> <strong class="text-blue-600">${belumKawin} Orang</strong></div>
+                <div class="flex justify-between border-b pb-1"><span>Kawin:</span> <strong class="text-blue-600">${kawin} Orang</strong></div>
+                <div class="flex justify-between border-b pb-1"><span>Cerai Hidup:</span> <strong class="text-blue-600">${ceraiHidup} Orang</strong></div>
+                <div class="flex justify-between"><span>Cerai Mati:</span> <strong class="text-blue-600">${ceraiMati} Orang</strong></div>
+            `;
+
+            const pkh = activeData.filter(w => w.b_pkh).length;
+            const bpnt = activeData.filter(w => w.b_bpnt).length;
+            const pbi = activeData.filter(w => w.b_pbi).length;
+            const blt = activeData.filter(w => w.b_blt).length;
+            const pip = activeData.filter(w => w.b_pip).length;
+            document.getElementById('dash-bansos-list').innerHTML = `
+                <div class="flex justify-between border-b pb-1"><span>Penerima PKH:</span> <strong class="text-emerald-600">${pkh} Orang</strong></div>
+                <div class="flex justify-between border-b pb-1"><span>Penerima BPNT:</span> <strong class="text-emerald-600">${bpnt} Orang</strong></div>
+                <div class="flex justify-between border-b pb-1"><span>Penerima PBI-JK:</span> <strong class="text-emerald-600">${pbi} Orang</strong></div>
+                <div class="flex justify-between border-b pb-1"><span>Penerima BLT-DD:</span> <strong class="text-emerald-600">${blt} Orang</strong></div>
+                <div class="flex justify-between"><span>Penerima PIP/KIP:</span> <strong class="text-emerald-600">${pip} Orang</strong></div>
+            `;
+        }
+
+        function renderWargaTable() {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin RT';
+            const q = document.getElementById('searchWarga').value.toLowerCase().trim();
+            const tbody = document.getElementById('wargaTableBody');
+            const thAksi = document.getElementById('thAksi');
+            tbody.innerHTML = '';
+            
+            if(role !== 'Admin Desa') {
+                if(thAksi) thAksi.style.display = 'none';
+            } else {
+                if(thAksi) thAksi.style.display = '';
+            }
+
+            const activeData = getFilteredWargaData();
+            const filtered = activeData.filter(w => {
+                const nama = (w.nama_lengkap || '').toLowerCase();
+                const nik = (w.no_ktp || '').toLowerCase();
+                const kk = (w.no_kk || '').toLowerCase();
+                const alamat = (w.alamat || '').toLowerCase();
+                const jenkel = (w.jenkel === 'L' ? 'laki-laki' : 'perempuan').toLowerCase();
+                const jenkelShort = (w.jenkel || '').toLowerCase();
+                const usia = String(w.usia || '').toLowerCase();
+                const agama = (w.agama || '').toLowerCase();
+                const pendidikan = (w.pendidikan || '').toLowerCase();
+                const pekerjaan = (w.pekerjaan || '').toLowerCase();
+                const kawin = (w.sts_perkawinan || '').toLowerCase();
+                const shdk = (w.shdk || '').toLowerCase();
+
+                return nama.includes(q) || nik.includes(q) || kk.includes(q) || alamat.includes(q) || jenkel.includes(q) || jenkelShort.includes(q) || usia.includes(q) || agama.includes(q) || pendidikan.includes(q) || pekerjaan.includes(q) || kawin.includes(q) || shdk.includes(q);
+            });
+
+            filtered.forEach((w, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
+                
+                let aksiTd = '';
+                if(role === 'Admin Desa') {
+                    aksiTd = `
+                        <td class="p-3 text-center space-x-2 no-print">
+                            <button onclick="openModal(${wargaData.indexOf(w)})" class="text-blue-600 hover:text-blue-800 p-1" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button onclick="deleteWarga(${wargaData.indexOf(w)})" class="text-red-600 hover:text-red-800 p-1" title="Hapus"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    `;
+                }
+
+                tr.innerHTML = `
+                    <td class="p-3">${index + 1}</td>
+                    <td class="p-3 font-medium">RT ${String(w.rt || '-').padStart(3, '0')}/RW ${String(w.rw || '-').padStart(3, '0')}</td>
+                    <td class="p-3 font-mono text-xs">KK: ${w.no_kk}<br>NIK: ${w.no_ktp}</td>
+                    <td class="p-3 font-medium text-slate-800">${w.nama_lengkap}</td>
+                    <td class="p-3 text-xs">${w.tmp_lahir || '-'}, ${w.tgl_lahir || '-'} (${w.usia} Th)</td>
+                    <td class="p-3"><span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-semibold">${w.shdk || '-'}</span></td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-semibold ${w.jenkel === 'L' ? 'bg-blue-50 text-blue-600' : 'bg-pink-50 text-pink-600'}">${w.jenkel}</span></td>
+                    ${aksiTd}
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderRekapWilayah() {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin RT';
+            const tbody = document.getElementById('rekapTableBody');
+            const titleEl = document.getElementById('rekapTitle');
+            const descEl = document.getElementById('rekapDesc');
+            const colHeader = document.getElementById('rekapColHeader');
+            tbody.innerHTML = '';
+
+            const activeData = getFilteredWargaData();
+
+            if (role === 'Admin RW') {
+                titleEl.innerText = "Rekapitulasi Data Warga Masing-Masing RT";
+                descEl.innerText = "Rincian jumlah kependudukan per RT di wilayah RW Anda.";
+                colHeader.innerText = "Wilayah RT";
+
+                const rtGroups = {};
+                activeData.forEach(w => {
+                    const rtKey = `RT ${String(w.rt || '001').padStart(3, '0')} / RW ${String(w.rw || '001').padStart(3, '0')}`;
+                    if(!rtGroups[rtKey]) rtGroups[rtKey] = [];
+                    rtGroups[rtKey].push(w);
+                });
+
+                let idx = 1;
+                for (let rt in rtGroups) {
+                    const wargaList = rtGroups[rt];
+                    const jmlKK = new Set(wargaList.map(w => w.no_kk)).size;
+                    const jmlL = wargaList.filter(w => w.jenkel === 'L').length;
+                    const jmlP = wargaList.filter(w => w.jenkel === 'P').length;
+
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-50";
+                    tr.innerHTML = `
+                        <td class="border p-3 text-center">${idx++}</td>
+                        <td class="border p-3 font-semibold">${rt}</td>
+                        <td class="border p-3 text-center">${jmlKK}</td>
+                        <td class="border p-3 text-center">${jmlL}</td>
+                        <td class="border p-3 text-center">${jmlP}</td>
+                        <td class="border p-3 text-center font-bold text-blue-600">${wargaList.length}</td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+
+            } else if (role === 'Admin Desa') {
+                titleEl.innerText = "Rekapitulasi Data Warga Masing-Masing RW";
+                descEl.innerText = "Rincian jumlah kependudukan per RW di seluruh wilayah Desa Ciomas.";
+                colHeader.innerText = "Wilayah RW";
+
+                const rwGroups = {};
+                activeData.forEach(w => {
+                    const rwKey = `RW ${String(w.rw || '001').padStart(3, '0')}`;
+                    if(!rwGroups[rwKey]) rwGroups[rwKey] = [];
+                    rwGroups[rwKey].push(w);
+                });
+
+                let idx = 1;
+                for (let rw in rwGroups) {
+                    const wargaList = rwGroups[rw];
+                    const jmlKK = new Set(wargaList.map(w => w.no_kk)).size;
+                    const jmlL = wargaList.filter(w => w.jenkel === 'L').length;
+                    const jmlP = wargaList.filter(w => w.jenkel === 'P').length;
+
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-50";
+                    tr.innerHTML = `
+                        <td class="border p-3 text-center">${idx++}</td>
+                        <td class="border p-3 font-semibold">${rw} Desa Ciomas</td>
+                        <td class="border p-3 text-center">${jmlKK}</td>
+                        <td class="border p-3 text-center">${jmlL}</td>
+                        <td class="border p-3 text-center">${jmlP}</td>
+                        <td class="border p-3 text-center font-bold text-blue-600">${wargaList.length}</td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            } else {
+                titleEl.innerText = "Rekapitulasi Data Warga Wilayah RT Anda";
+                descEl.innerText = "Rincian jumlah kependudukan di RT Anda.";
+                colHeader.innerText = "Wilayah RT";
+
+                const loggedUser = localStorage.getItem('lapduk_logged_user');
+                const terr = parseUserTerritory(loggedUser, role);
+                const rtKey = `RT ${terr.rt} / RW ${terr.rw}`;
+                const jmlKK = new Set(activeData.map(w => w.no_kk)).size;
+                const jmlL = activeData.filter(w => w.jenkel === 'L').length;
+                const jmlP = activeData.filter(w => w.jenkel === 'P').length;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50";
+                tr.innerHTML = `
+                    <td class="border p-3 text-center">1</td>
+                    <td class="border p-3 font-semibold">${rtKey}</td>
+                    <td class="border p-3 text-center">${jmlKK}</td>
+                    <td class="border p-3 text-center">${jmlL}</td>
+                    <td class="border p-3 text-center">${jmlP}</td>
+                    <td class="border p-3 text-center font-bold text-blue-600">${activeData.length}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+
+        function renderMutasiTable() {
+            const tbody = document.getElementById('mutasiTableBody');
+            tbody.innerHTML = '';
+            const activeData = getFilteredWargaData();
+            const mutasiList = activeData.filter(w => ['Datang', 'Pindah', 'Meninggal'].includes(w.mutasi));
+
+            if(mutasiList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">Tidak ada data mutasi saat ini.</td></tr>`;
+            } else {
+                mutasiList.forEach((w, index) => {
+                    const tr = document.createElement('tr');
+                    tr.className = "border-b border-slate-200 text-xs";
+                    tr.innerHTML = `
+                        <td class="border p-2 text-center">${index + 1}</td>
+                        <td class="border p-2 text-center">RT ${String(w.rt || '-').padStart(3, '0')}/RW ${String(w.rw || '-').padStart(3, '0')}</td>
+                        <td class="border p-2 font-medium">${w.nama_lengkap}</td>
+                        <td class="border p-2 text-center">${w.jenkel}</td>
+                        <td class="border p-2 font-semibold text-blue-700">${w.mutasi}</td>
+                        <td class="border p-2">${w.tgl_mutasi || '-'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            renderKopSurat('kopMutasiArea', 'Laporan Rekapitulasi Mutasi Penduduk (Datang, Pindah, Meninggal)');
+            renderSignatures('ttdMutasiArea');
+        }
+
+        function openModal(index = null) {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin RT';
+            if (role !== 'Admin Desa') {
+                alert('Akses ditolak! Hanya Admin Desa yang memiliki hak akses untuk menambah atau mengedit data warga.');
+                return;
+            }
+
+            document.getElementById('wargaModal').classList.remove('hidden');
+            if (index !== null) {
+                document.getElementById('modalTitle').innerText = 'Edit Data Warga';
+                document.getElementById('editIndex').value = index;
+                const w = wargaData[index];
+                document.getElementById('rt').value = w.rt || '';
+                document.getElementById('rw').value = w.rw || '';
+                document.getElementById('alamat').value = w.alamat || '';
+                document.getElementById('no_kk').value = w.no_kk;
+                document.getElementById('no_ktp').value = w.no_ktp;
+                document.getElementById('nama_lengkap').value = w.nama_lengkap;
+                document.getElementById('tmp_lahir').value = w.tmp_lahir || '';
+                document.getElementById('tgl_lahir').value = w.tgl_lahir || '';
+                document.getElementById('usia').value = w.usia || 0;
+                document.getElementById('shdk').value = w.shdk || 'Kepala Keluarga';
+                document.getElementById('jenkel').value = w.jenkel;
+                document.getElementById('agama').value = w.agama;
+                document.getElementById('pendidikan').value = w.pendidikan;
+                document.getElementById('pekerjaan').value = w.pekerjaan || '';
+                document.getElementById('sts_perkawinan').value = w.sts_perkawinan;
+                document.getElementById('mutasi').value = w.mutasi || 'Tetap';
+                document.getElementById('tgl_mutasi').value = w.tgl_mutasi || '';
+                document.getElementById('ket_kk').value = w.ket_kk;
+                document.getElementById('ket_ktp').value = w.ket_ktp;
+                document.getElementById('ket_kia').value = w.ket_kia;
+                document.getElementById('ket_akta').value = w.ket_akta;
+                document.getElementById('b_pkh').checked = w.b_pkh;
+                document.getElementById('b_bpnt').checked = w.b_bpnt;
+                document.getElementById('b_pbi').checked = w.b_pbi;
+                document.getElementById('b_blt').checked = w.b_blt;
+                document.getElementById('b_pip').checked = w.b_pip;
+            } else {
+                document.getElementById('modalTitle').innerText = 'Tambah Data Warga';
+                document.getElementById('wargaForm').reset();
+                document.getElementById('editIndex').value = '';
+                document.getElementById('tgl_mutasi').value = new Date().toISOString().split('T')[0];
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('wargaModal').classList.add('hidden');
+        }
+
+        function saveWarga(event) {
+            event.preventDefault();
+            const index = document.getElementById('editIndex').value;
+            const newData = {
+                rt: document.getElementById('rt').value,
+                rw: document.getElementById('rw').value,
+                alamat: document.getElementById('alamat').value,
+                no_kk: document.getElementById('no_kk').value,
+                no_ktp: document.getElementById('no_ktp').value,
+                nama_lengkap: document.getElementById('nama_lengkap').value,
+                tmp_lahir: document.getElementById('tmp_lahir').value,
+                tgl_lahir: document.getElementById('tgl_lahir').value,
+                usia: parseInt(document.getElementById('usia').value) || 0,
+                shdk: document.getElementById('shdk').value,
+                jenkel: document.getElementById('jenkel').value,
+                agama: document.getElementById('agama').value,
+                pendidikan: document.getElementById('pendidikan').value,
+                pekerjaan: document.getElementById('pekerjaan').value,
+                sts_perkawinan: document.getElementById('sts_perkawinan').value,
+                mutasi: document.getElementById('mutasi').value,
+                tgl_mutasi: document.getElementById('tgl_mutasi').value,
+                ket_kk: document.getElementById('ket_kk').value,
+                ket_ktp: document.getElementById('ket_ktp').value,
+                ket_kia: document.getElementById('ket_kia').value,
+                ket_akta: document.getElementById('ket_akta').value,
+                b_pkh: document.getElementById('b_pkh').checked,
+                b_bpnt: document.getElementById('b_bpnt').checked,
+                b_pbi: document.getElementById('b_pbi').checked,
+                b_blt: document.getElementById('b_blt').checked,
+                b_pip: document.getElementById('b_pip').checked
+            };
+
+            if (index === '') {
+                wargaData.push(newData);
+            } else {
+                wargaData[index] = newData;
+            }
+
+            saveData();
+            closeModal();
+            renderWargaTable();
+            updateDashboard();
+        }
+
+        function deleteWarga(index) {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin RT';
+            if (role !== 'Admin Desa') {
+                alert('Akses ditolak! Hanya Admin Desa yang dapat menghapus data warga.');
+                return;
+            }
+            if (confirm('Apakah Anda yakin ingin menghapus data warga ini?')) {
+                wargaData.splice(index, 1);
+                saveData();
+                renderWargaTable();
+                updateDashboard();
+            }
+        }
+
+        // --- MANAJEMEN AKUN (ADMIN DESA) ---
+        function renderAccountTable() {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin RT';
+            const tbody = document.getElementById('accountTableBody');
+            const thAksiAkun = document.getElementById('thAksiAkun');
+            const btnContainer = document.getElementById('accountActionBtnContainer');
+            tbody.innerHTML = '';
+
+            if (role === 'Admin Desa') {
+                if(thAksiAkun) thAksiAkun.style.display = '';
+                if(btnContainer) {
+                    btnContainer.innerHTML = `<button onclick="openAkunModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg text-xs md:text-sm font-medium transition flex items-center shadow"><i class="fa-solid fa-user-plus mr-1.5"></i> Tambah Akun Baru</button>`;
+                }
+            } else {
+                if(thAksiAkun) thAksiAkun.style.display = 'none';
+                if(btnContainer) btnContainer.innerHTML = '';
+            }
+
+            accounts.forEach((acc, idx) => {
+                const isDesa = acc.role === 'Admin Desa';
+                let aksiTd = '';
+                if (role === 'Admin Desa') {
+                    aksiTd = `
+                        <td class="p-3 text-center">
+                            <button onclick="openAkunModal(${idx})" class="text-blue-600 hover:text-blue-800 p-1 font-semibold text-xs bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition"><i class="fa-solid fa-pen-to-square mr-1"></i> Edit Akun</button>
+                        </td>
+                    `;
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
+                tr.innerHTML = `
+                    <td class="p-3">${idx + 1}</td>
+                    <td class="p-3 font-semibold text-slate-800">${acc.username}</td>
+                    <td class="p-3 font-mono text-xs text-slate-600">${role === 'Admin Desa' ? acc.password : '••••••••'}</td>
+                    <td class="p-3"><span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded text-xs font-semibold">${acc.role}</span></td>
+                    <td class="p-3 text-xs text-slate-500">${acc.desc}</td>
+                    ${aksiTd}
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openAkunModal(index = null) {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin RT';
+            if (role !== 'Admin Desa') {
+                alert('Akses ditolak! Hanya Admin Desa yang dapat mengedit akun pengguna.');
+                return;
+            }
+
+            document.getElementById('akunModal').classList.remove('hidden');
+            if (index !== null) {
+                document.getElementById('modalAkunTitle').innerText = 'Edit Akun Pengguna';
+                document.getElementById('editAkunIndex').value = index;
+                const acc = accounts[index];
+                document.getElementById('akunUsername').value = acc.username;
+                document.getElementById('akunPassword').value = acc.password;
+                document.getElementById('akunRole').value = acc.role;
+                document.getElementById('akunDesc').value = acc.desc;
+            } else {
+                document.getElementById('modalAkunTitle').innerText = 'Tambah Akun Baru';
+                document.getElementById('akunForm').reset();
+                document.getElementById('editAkunIndex').value = '';
+            }
+        }
+
+        function closeAkunModal() {
+            document.getElementById('akunModal').classList.add('hidden');
+        }
+
+        function saveAkun(event) {
+            event.preventDefault();
+            const index = document.getElementById('editAkunIndex').value;
+            const newAcc = {
+                username: document.getElementById('akunUsername').value.trim(),
+                password: document.getElementById('akunPassword').value.trim(),
+                role: document.getElementById('akunRole').value,
+                desc: document.getElementById('akunDesc').value.trim()
+            };
+
+            if (index === '') {
+                accounts.push(newAcc);
+            } else {
+                accounts[index] = newAcc;
+            }
+
+            localStorage.setItem('lapduk_accounts_ciomas_v5', JSON.stringify(accounts));
+            closeAkunModal();
+            renderAccountTable();
+            alert('Data akun berhasil disimpan!');
+        }
+
+        function getFormattedTodayDate() {
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            return new Date().toLocaleDateString('id-ID', options);
+        }
+
+        function renderKopSurat(containerId, subtitleText) {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin RT';
+            const loggedUser = localStorage.getItem('lapduk_logged_user') || 'desa';
+            const terr = parseUserTerritory(loggedUser, role);
+            const container = document.getElementById(containerId);
+            if(!container) return;
+
+            let wilayahHeader = '';
+            if (role === 'Admin Desa') {
+                wilayahHeader = '<h4 class="font-bold uppercase text-xs md:text-sm text-slate-700">Pemerintah Desa Ciomas — Kecamatan Ciomas</h4>';
+            } else if (role === 'Admin RW') {
+                wilayahHeader = `<h4 class="font-bold uppercase text-xs md:text-sm text-slate-700">Rukun Warga (RW) ${terr.rw} — Desa Ciomas, Kecamatan Ciomas</h4>`;
+            } else {
+                wilayahHeader = `<h4 class="font-bold uppercase text-xs md:text-sm text-slate-700">Rukun Tetangga (RT ${terr.rt} / RW ${terr.rw}) — Desa Ciomas, Kecamatan Ciomas</h4>`;
+            }
+
+            container.innerHTML = `
+                <div class="text-center border-b-2 border-slate-800 pb-4">
+                    <h3 class="font-bold uppercase text-sm md:text-base tracking-wide">Pemerintah Kabupaten Bogor</h3>
+                    ${wilayahHeader}
+                    <p class="text-[10px] md:text-xs text-slate-500 mt-0.5">${subtitleText}</p>
+                </div>
+            `;
+        }
+
+        function renderSignatures(containerId) {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin RT';
+            const todayStr = `Ciomas, ${getFormattedTodayDate()}`;
+            const container = document.getElementById(containerId);
+            if(!container) return;
+
+            let html = '';
+            if (role === 'Admin Desa') {
+                html = `
+                    <div class="flex justify-between pt-4 text-xs md:text-sm">
+                        <div class="text-center"><p>Mengetahui,</p><p class="font-bold">Kepala Desa Ciomas</p><br><br><br><p class="underline font-bold">( .......................... )</p></div>
+                        <div class="text-center"><p>Mengetahui,</p><p class="font-bold">Sekretaris Desa</p><br><br><br><p class="underline font-bold">( .......................... )</p></div>
+                        <div class="text-center"><p>${todayStr}</p><p class="font-bold">Kasi. Pemerintahan</p><br><br><br><p class="underline font-bold">( .......................... )</p></div>
+                    </div>
+                `;
+            } else if (role === 'Admin RW') {
+                html = `
+                    <div class="flex justify-between pt-4 text-xs md:text-sm">
+                        <div class="text-center"><p>Mengetahui,</p><p class="font-bold">Kasi. Pemerintahan Desa</p><br><br><br><p class="underline font-bold">( .......................... )</p></div>
+                        <div class="text-center"><p>${todayStr}</p><p class="font-bold">Ketua RW</p><br><br><br><p class="underline font-bold">( .......................... )</p></div>
+                    </div>
+                `;
+            } else {
+                html = `
+                    <div class="flex justify-between pt-4 text-xs md:text-sm">
+                        <div class="text-center"><p>Mengetahui,</p><p class="font-bold">Ketua RW</p><br><br><br><p class="underline font-bold">( .......................... )</p></div>
+                        <div class="text-center"><p>${todayStr}</p><p class="font-bold">Ketua RT</p><br><br><br><p class="underline font-bold">( .......................... )</p></div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        function exportTxtData() {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin Desa';
+            const loggedUser = localStorage.getItem('lapduk_logged_user') || 'desa';
+            const activeData = getFilteredWargaData();
+
+            let filename = "backup_data_warga_ciomas.txt";
+            if (role === 'Admin RW') filename = `backup_data_warga_rw_${parseUserTerritory(loggedUser, role).rw}.txt`;
+            if (role === 'Admin RT') {
+                const t = parseUserTerritory(loggedUser, role);
+                filename = `backup_data_warga_rt${t.rt}_rw${t.rw}.txt`;
+            }
+
+            const dataStr = JSON.stringify(activeData, null, 2);
+            const blob = new Blob([dataStr], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importTxtData(event) {
+            const role = localStorage.getItem('lapduk_logged_role') || 'Admin RT';
+            if (role !== 'Admin Desa') {
+                alert('Akses ditolak! Hanya Admin Desa yang dapat mengimpor data warga baru.');
+                event.target.value = '';
+                return;
+            }
+
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const incomingData = JSON.parse(e.target.result);
+                    if (Array.isArray(incomingData)) {
+                        if (confirm(`Ditemukan ${incomingData.length} data warga dari file .txt. Tambahkan dan gabungkan data tersebut ke sistem?`)) {
+                            wargaData = wargaData.concat(incomingData);
+                            saveData();
+                            renderWargaTable();
+                            updateDashboard();
+                            alert(`Berhasil! ${incomingData.length} data baru telah digabungkan.`);
+                        }
+                    } else {
+                        alert('Format file .txt tidak valid.');
+                    }
+                } catch (error) {
+                    alert('Gagal membaca file backup.');
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function renderLaporan() {
+            const activeData = getFilteredWargaData();
+            const l_jml = activeData.filter(w => w.jenkel === 'L').length;
+            const p_jml = activeData.filter(w => w.jenkel === 'P').length;
+            const l_kk = new Set(activeData.filter(w => w.jenkel === 'L').map(w => w.no_kk)).size;
+            const p_kk = new Set(activeData.filter(w => w.jenkel === 'P').map(w => w.no_kk)).size;
+
+            document.getElementById('stat-table-gender').innerHTML = `
+                <tr><td class="border p-2">Penduduk Laki-Laki / Perempuan</td><td class="border p-2 text-center">${l_jml}</td><td class="border p-2 text-center">${p_jml}</td><td class="border p-2 text-center font-bold">${l_jml + p_jml}</td></tr>
+                <tr class="bg-slate-50 font-semibold"><td class="border p-2">Jumlah Kepala Keluarga (KK)</td><td class="border p-2 text-center">${l_kk}</td><td class="border p-2 text-center">${p_kk}</td><td class="border p-2 text-center">${new Set(activeData.map(w => w.no_kk)).size}</td></tr>
+            `;
+
+            const usiaList = [
+                { label: 'Balita (0 - 5 Tahun)', min: 0, max: 5 },
+                { label: 'Anak-anak (6 - 17 Tahun)', min: 6, max: 17 },
+                { label: 'Dewasa (18 - 59 Tahun)', min: 18, max: 59 },
+                { label: 'Lansia (60+ Tahun)', min: 60, max: 200 }
+            ];
+            let usiaHTML = '';
+            let tot_l_usia = 0, tot_p_usia = 0;
+            usiaList.forEach(u => {
+                const l = activeData.filter(w => w.usia >= u.min && w.usia <= u.max && w.jenkel === 'L').length;
+                const p = activeData.filter(w => w.usia >= u.min && w.usia <= u.max && w.jenkel === 'P').length;
+                tot_l_usia += l; tot_p_usia += p;
+                usiaHTML += `<tr><td class="border p-2">${u.label}</td><td class="border p-2 text-center">${l}</td><td class="border p-2 text-center">${p}</td><td class="border p-2 text-center font-bold">${l + p}</td></tr>`;
+            });
+            usiaHTML += `<tr class="bg-slate-50 font-bold"><td class="border p-2">Total Kelompok Usia</td><td class="border p-2 text-center">${tot_l_usia}</td><td class="border p-2 text-center">${tot_p_usia}</td><td class="border p-2 text-center">${tot_l_usia + tot_p_usia}</td></tr>`;
+            document.getElementById('stat-table-usia').innerHTML = usiaHTML;
+
+            const agamas = ['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha'];
+            let agamaHTML = '';
+            let tot_l_ag = 0, tot_p_ag = 0;
+            agamas.forEach(ag => {
+                const l = activeData.filter(w => w.agama === ag && w.jenkel === 'L').length;
+                const p = activeData.filter(w => w.agama === ag && w.jenkel === 'P').length;
+                tot_l_ag += l; tot_p_ag += p;
+                agamaHTML += `<tr><td class="border p-2">${ag}</td><td class="border p-2 text-center">${l}</td><td class="border p-2 text-center">${p}</td><td class="border p-2 text-center font-bold">${l + p}</td></tr>`;
+            });
+            agamaHTML += `<tr class="bg-slate-50 font-bold"><td class="border p-2">Total Agama</td><td class="border p-2 text-center">${tot_l_ag}</td><td class="border p-2 text-center">${tot_p_ag}</td><td class="border p-2 text-center">${tot_l_ag + tot_p_ag}</td></tr>`;
+            document.getElementById('stat-table-agama').innerHTML = agamaHTML;
+
+            const kawins = ['Belum Kawin', 'Kawin', 'Cerai Hidup', 'Cerai Mati'];
+            let kawinHTML = '';
+            let tot_l_kw = 0, tot_p_kw = 0;
+            kawins.forEach(sk => {
+                const l = activeData.filter(w => w.sts_perkawinan === sk && w.jenkel === 'L').length;
+                const p = activeData.filter(w => w.sts_perkawinan === sk && w.jenkel === 'P').length;
+                tot_l_kw += l; tot_p_kw += p;
+                kawinHTML += `<tr><td class="border p-2">${sk}</td><td class="border p-2 text-center">${l}</td><td class="border p-2 text-center">${p}</td><td class="border p-2 text-center font-bold">${l + p}</td></tr>`;
+            });
+            kawinHTML += `<tr class="bg-slate-50 font-bold"><td class="border p-2">Total Status Perkawinan</td><td class="border p-2 text-center">${tot_l_kw}</td><td class="border p-2 text-center">${tot_p_kw}</td><td class="border p-2 text-center">${tot_l_kw + tot_p_kw}</td></tr>`;
+            document.getElementById('stat-table-perkawinan').innerHTML = kawinHTML;
+
+            const pends = ['Tidak Sekolah', 'SD', 'SMP', 'SMA', 'Diploma/S1'];
+            let pendHTML = '';
+            let tot_l_pd = 0, tot_p_pd = 0;
+            pends.forEach(pd => {
+                const l = activeData.filter(w => w.pendidikan === pd && w.jenkel === 'L').length;
+                const p = activeData.filter(w => w.pendidikan === pd && w.jenkel === 'P').length;
+                tot_l_pd += l; tot_p_pd += p;
+                pendHTML += `<tr><td class="border p-2">${pd}</td><td class="border p-2 text-center">${l}</td><td class="border p-2 text-center">${p}</td><td class="border p-2 text-center font-bold">${l + p}</td></tr>`;
+            });
+            pendHTML += `<tr class="bg-slate-50 font-bold"><td class="border p-2">Total Pendidikan</td><td class="border p-2 text-center">${tot_l_pd}</td><td class="border p-2 text-center">${tot_p_pd}</td><td class="border p-2 text-center">${tot_l_pd + tot_p_pd}</td></tr>`;
+            document.getElementById('stat-table-pendidikan').innerHTML = pendHTML;
+
+            const uniquePekerjaan = [...new Set(activeData.map(w => w.pekerjaan || 'Lainnya'))];
+            let pekHTML = '';
+            let tot_l_pk = 0, tot_p_pk = 0;
+            uniquePekerjaan.forEach(pk => {
+                const l = activeData.filter(w => (w.pekerjaan || 'Lainnya') === pk && w.jenkel === 'L').length;
+                const p = activeData.filter(w => (w.pekerjaan || 'Lainnya') === pk && w.jenkel === 'P').length;
+                tot_l_pk += l; tot_p_pk += p;
+                pekHTML += `<tr><td class="border p-2">${pk}</td><td class="border p-2 text-center">${l}</td><td class="border p-2 text-center">${p}</td><td class="border p-2 text-center font-bold">${l + p}</td></tr>`;
+            });
+            pekHTML += `<tr class="bg-slate-50 font-bold"><td class="border p-2">Total Pekerjaan</td><td class="border p-2 text-center">${tot_l_pk}</td><td class="border p-2 text-center">${tot_p_pk}</td><td class="border p-2 text-center">${tot_l_pk + tot_p_pk}</td></tr>`;
+            document.getElementById('stat-table-pekerjaan').innerHTML = pekHTML;
+
+            const kkL = activeData.filter(w => w.ket_kk === 'Ada' && w.jenkel === 'L').length;
+            const kkP = activeData.filter(w => w.ket_kk === 'Ada' && w.jenkel === 'P').length;
+            const ktpL = activeData.filter(w => w.ket_ktp === 'E-KTP' && w.jenkel === 'L').length;
+            const ktpP = activeData.filter(w => w.ket_ktp === 'E-KTP' && w.jenkel === 'P').length;
+            const kiaL = activeData.filter(w => w.usia < 17 && w.ket_kia === 'Ada' && w.jenkel === 'L').length;
+            const kiaP = activeData.filter(w => w.usia < 17 && w.ket_kia === 'Ada' && w.jenkel === 'P').length;
+            const aktaL = activeData.filter(w => w.ket_akta === 'Ada' && w.jenkel === 'L').length;
+            const aktaP = activeData.filter(w => w.ket_akta === 'Ada' && w.jenkel === 'P').length;
+
+            document.getElementById('stat-table-dokumen').innerHTML = `
+                <tr><td class="border p-2">Memiliki Kartu Keluarga (KK)</td><td class="border p-2 text-center">${kkL}</td><td class="border p-2 text-center">${kkP}</td><td class="border p-2 text-center font-bold">${kkL + kkP}</td></tr>
+                <tr><td class="border p-2">Memiliki E-KTP</td><td class="border p-2 text-center">${ktpL}</td><td class="border p-2 text-center">${ktpP}</td><td class="border p-2 text-center font-bold">${ktpL + ktpP}</td></tr>
+                <tr><td class="border p-2">Memiliki KIA (Usia &lt; 17 Tahun)</td><td class="border p-2 text-center">${kiaL}</td><td class="border p-2 text-center">${kiaP}</td><td class="border p-2 text-center font-bold">${kiaL + kiaP}</td></tr>
+                <tr><td class="border p-2">Memiliki Akta Kelahiran</td><td class="border p-2 text-center">${aktaL}</td><td class="border p-2 text-center">${aktaP}</td><td class="border p-2 text-center font-bold">${aktaL + aktaP}</td></tr>
+            `;
+
+            const pkhL = activeData.filter(w => w.b_pkh && w.jenkel === 'L').length;
+            const pkhP = activeData.filter(w => w.b_pkh && w.jenkel === 'P').length;
+            const bpntL = activeData.filter(w => w.b_bpnt && w.jenkel === 'L').length;
+            const bpntP = activeData.filter(w => w.b_bpnt && w.jenkel === 'P').length;
+            const pbiL = activeData.filter(w => w.b_pbi && w.jenkel === 'L').length;
+            const pbiP = activeData.filter(w => w.b_pbi && w.jenkel === 'P').length;
+            const bltL = activeData.filter(w => w.b_blt && w.jenkel === 'L').length;
+            const bltP = activeData.filter(w => w.b_blt && w.jenkel === 'P').length;
+            const pipL = activeData.filter(w => w.b_pip && w.jenkel === 'L').length;
+            const pipP = activeData.filter(w => w.b_pip && w.jenkel === 'P').length;
+
+            document.getElementById('stat-table-bantuan').innerHTML = `
+                <tr><td class="border p-2">Penerima PKH</td><td class="border p-2 text-center">${pkhL}</td><td class="border p-2 text-center">${pkhP}</td><td class="border p-2 text-center font-bold">${pkhL + pkhP}</td></tr>
+                <tr><td class="border p-2">Penerima BPNT</td><td class="border p-2 text-center">${bpntL}</td><td class="border p-2 text-center">${bpntP}</td><td class="border p-2 text-center font-bold">${bpntL + bpntP}</td></tr>
+                <tr><td class="border p-2">Penerima PBI-JK</td><td class="border p-2 text-center">${pbiL}</td><td class="border p-2 text-center">${pbiP}</td><td class="border p-2 text-center font-bold">${pbiL + pbiP}</td></tr>
+                <tr><td class="border p-2">Penerima BLT-DD</td><td class="border p-2 text-center">${bltL}</td><td class="border p-2 text-center">${bltP}</td><td class="border p-2 text-center font-bold">${bltL + bltP}</td></tr>
+                <tr><td class="border p-2">Penerima PIP/KIP</td><td class="border p-2 text-center">${pipL}</td><td class="border p-2 text-center">${pipP}</td><td class="border p-2 text-center font-bold">${pipL + pipP}</td></tr>
+            `;
+
+            renderKopSurat('kopStatArea', 'Laporan Statistik Kependudukan Resmi Wilayah');
+            renderSignatures('ttdStatArea');
+        }
+
+        function renderPrintArea() {
+            sortWargaByRtRw();
+            const activeData = getFilteredWargaData();
+            document.getElementById('printWargaTableBody').innerHTML = '';
+            activeData.forEach((w, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border p-1 text-center">${index + 1}</td>
+                    <td class="border p-1 text-center">RT ${String(w.rt || '-').padStart(3, '0')}/RW ${String(w.rw || '-').padStart(3, '0')}</td>
+                    <td class="border p-1">${w.nama_lengkap}</td>
+                    <td class="p-1 border">${w.tmp_lahir || '-'}, ${w.tgl_lahir || '-'}</td>
+                    <td class="border p-1">${w.shdk || '-'}</td>
+                    <td class="border p-1 text-center">${w.jenkel}</td>
+                    <td class="border p-1">${w.alamat || '-'}</td>
+                `;
+                document.getElementById('printWargaTableBody').appendChild(tr);
+            });
+            renderKopSurat('kopMasterArea', 'Laporan Bulanan Master Data Kependudukan Tahun 2026');
+            renderSignatures('ttdMasterArea');
+        }
+
+        function printSection(sectionId) {
+            const element = document.getElementById(sectionId);
+            element.classList.add('printing-active');
+            window.print();
+            element.classList.remove('printing-active');
+        }
+
+        function exportWargaExcel() {
+            const activeData = getFilteredWargaData();
+            const worksheet = XLSX.utils.json_to_sheet(activeData.map((w, index) => ({
+                'No': index + 1, 'RT': w.rt, 'RW': w.rw, 'Alamat': w.alamat, 'No KK': w.no_kk, 'NIK': w.no_ktp,
+                'Nama Lengkap': w.nama_lengkap, 'Tempat Lahir': w.tmp_lahir, 'Tanggal Lahir': w.tgl_lahir,
+                'Usia': w.usia, 'SHDK': w.shdk, 'Jenis Kelamin': w.jenkel, 'Agama': w.agama, 'Pendidikan': w.pendidikan,
+                'Pekerjaan': w.pekerjaan, 'Status Perkawinan': w.sts_perkawinan, 'Mutasi': w.mutasi, 'Tanggal Mutasi': w.tgl_mutasi,
+                'KK': w.ket_kk, 'E-KTP': w.ket_ktp, 'KIA': w.ket_kia, 'Akta': w.ket_akta,
+                'PKH': w.b_pkh ? 'Ya' : 'Tidak', 'BPNT': w.b_bpnt ? 'Ya' : 'Tidak', 'PBI-JK': w.b_pbi ? 'Ya' : 'Tidak', 'BLT-DD': w.b_blt ? 'Ya' : 'Tidak', 'PIP': w.b_pip ? 'Ya' : 'Tidak'
+            })));
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Data Warga");
+            XLSX.writeFile(workbook, "Data_Warga_Ciomas.xlsx");
+        }
+
+        function exportMutasiExcel() {
+            const activeData = getFilteredWargaData();
+            const mutasiList = activeData.filter(w => ['Datang', 'Pindah', 'Meninggal'].includes(w.mutasi));
+            const worksheet = XLSX.utils.json_to_sheet(mutasiList.map((w, index) => ({
+                'No': index + 1, 'RT': w.rt, 'RW': w.rw, 'Nama Lengkap': w.nama_lengkap, 'Jenis Kelamin': w.jenkel, 'Status Mutasi': w.mutasi, 'Tanggal Mutasi': w.tgl_mutasi
+            })));
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Mutasi Warga");
+            XLSX.writeFile(workbook, "Control_Mutasi_Ciomas.xlsx");
+        }
+
+        function exportStatistikExcel() {
+            const element = document.getElementById('printStatArea');
+            const workbook = XLSX.utils.table_to_book(element);
+            XLSX.writeFile(workbook, "Laporan_Statistik_Ciomas.xlsx");
+        }
+
+        function exportMasterExcel() {
+            const activeData = getFilteredWargaData();
+            const worksheet = XLSX.utils.json_to_sheet(activeData.map((w, index) => ({
+                'No': index + 1, 'RT': w.rt, 'RW': w.rw, 'Nama Lengkap': w.nama_lengkap, 'TTL': `${w.tmp_lahir}, ${w.tgl_lahir}`, 'SHDK': w.shdk, 'Jenis Kelamin': w.jenkel, 'Alamat': w.alamat
+            })));
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Master Warga");
+            XLSX.writeFile(workbook, "Master_Data_Warga_Ciomas.xlsx");
+        }
+
+        function exportWargaPDF() {
+            const element = document.getElementById('printArea');
+            const opt = { margin: 0.3, filename: 'Data_Warga_Ciomas.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function exportMutasiPDF() {
+            const element = document.getElementById('printMutasiArea');
+            const opt = { margin: 0.3, filename: 'Control_Mutasi_Ciomas.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function exportStatistikPDF() {
+            const element = document.getElementById('printStatArea');
+            const opt = { margin: 0.3, filename: 'Laporan_Statistik_Ciomas.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function exportMasterPDF() {
+            const element = document.getElementById('printArea');
+            const opt = { margin: 0.3, filename: 'Master_Data_Warga_Ciomas.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } };
+            html2pdf().set(opt).from(element).save();
+        }
+    </script>
+</body>
+</html>
